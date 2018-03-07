@@ -3,9 +3,6 @@ from datetime import datetime
 import upnpclient
 
 
-fn = None
-
-
 AVTRANSPORT_SERVICE_ID = "urn:upnp-org:serviceId:AVTransport"
 
 
@@ -22,7 +19,7 @@ def seek_abs(device, desired_target):
     """
     Go to a specified absolute position on the track
     """
-    media_info = device.AVTransport.GetMediaInfo(InstanceID=0)
+    media_info = device.AVTransport.GetPositionInfo(InstanceID=0)
 
     track_duration_t = datetime.strptime(
         media_info["TrackDuration"], "%H:%M:%S")
@@ -140,10 +137,10 @@ if __name__ == "__main__":
         AVAILABLE_COMMANDS["play"](device)
 
         import time
-        time.sleep(10)
+        time.sleep(5)
         AVAILABLE_COMMANDS["pause"](device)
 
         time.sleep(5)
         AVAILABLE_COMMANDS["play"](device)
 
-        # AVAILABLE_COMMANDS["seek"](device, "0:01:30")
+        AVAILABLE_COMMANDS["seek_abs"](device, "0:01:30")
