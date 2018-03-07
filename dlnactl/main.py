@@ -27,8 +27,9 @@ AVAILABLE_COMMANDS = {
     "next_media": lambda device: raise_(NotImplemented),
     "previous_media": lambda device: raise_(NotImplemented),
     "set_media": fn,
-    "set_next_media": fn,
-    "get_status": fn,
+    "set_next_media": lambda device: raise_(NotImplemented),
+    "get_state": lambda device: device.AVTransport.GetTransportInfo(
+        InstanceID=0)["CurrentTransportState"],
     "get_media_info": lambda device: device.AVTransport.GetMediaInfo(
         InstanceID=0),
     "get_track_info": lambda device: device.AVTransport.GetPositionInfo(
