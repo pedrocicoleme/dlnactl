@@ -49,8 +49,10 @@ if __name__ == "__main__":
         AVAILABLE_COMMANDS["play"](device)
 
         import time
-        time.sleep(30)
+        time.sleep(10)
         AVAILABLE_COMMANDS["pause"](device)
 
         time.sleep(5)
         AVAILABLE_COMMANDS["play"](device)
+
+        AVAILABLE_COMMANDS["seek"](device, "0:01:30")
