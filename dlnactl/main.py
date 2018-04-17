@@ -16,21 +16,22 @@ def raise_(exception):
     raise exception()
 
 
+def secs_from_time_str(time_str):
+    timebsecs = time.strptime(time_str, "%H:%M:%S")
+
+    return datetime.timedelta(
+        hours=tdur.tm_hour, minutes=tdur.tm_min, seconds=tdur.tm_sec).total_seconds()
+
+
 def seek_abs(device, desired_target):
     """
     Go to a specified absolute position on the track
     """
     media_info = device.AVTransport.GetPositionInfo(InstanceID=0)
 
-    tdur = time.strptime(
-        media_info["TrackDuration"], "%H:%M:%S")
-    track_duration_t = datetime.timedelta(
-        hours=tdur.tm_hour, minutes=tdur.tm_min, seconds=tdur.tm_sec).total_seconds()
+    track_duration_t = secs_from_time_str(media_info["TrackDuration"])
 
-    tdes = time.strptime(
-        desired_target, "%H:%M:%S")
-    track_desired_t = datetime.timedelta(
-        hours=tdes.tm_hour, minutes=tdes.tm_min, seconds=tdes.tm_sec).total_seconds()
+    track_desired_t = secs_from_time_str(desired_target)
 
     target = min(track_duration_t, desired_target_t)
 
@@ -39,6 +40,17 @@ def seek_abs(device, desired_target):
 
     return device.AVTransport.Seek(
         InstanceID=0, Unit="ABS_TIME", Target="{}:{02d}:{02d}".format(h, m, s))
+
+
+def seek_percent(device, desired_percent):
+    """
+    Go to the % in time of the current track
+    """
+    media_info = device.AVTransport.GetPositionInfo(InstanceID=0)
+
+    track_duration_t = secs_from_time_str(media_info["TrackDuration"])
+
+    return seek_abs(device, track_duration_t * max(0, min(1, desired_percent / 100.0)))
 
 
 def seek_track(device, desired_track):
@@ -55,7 +67,7 @@ def seek_track(device, desired_track):
         InstanceID=0, Unit="TRACK_NR", Target=target)
 
 
-def seek_track_rel(device, step=1):
+def seek_track_rel(device, desired_step=1):
     """
     Go to a track relative to the current one
     """
@@ -63,7 +75,7 @@ def seek_track_rel(device, step=1):
 
     current_track = position_info["Track"]
 
-    desired_track = current_track + step
+    desired_track = current_track + desired_step
 
     return seek_track(device, desired_track)
 
