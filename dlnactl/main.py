@@ -110,6 +110,7 @@ AVAILABLE_COMMANDS = {
     "pause": lambda device: device.AVTransport.Pause(InstanceID=0),
     "stop": lambda device: device.AVTransport.Stop(InstanceID=0),
     "seek_abs": seek_abs,
+    "seek_percent": seek_percent,
     "seek_track": seek_track,
     "next_track": lambda device: seek_track_rel(device, 1),
     "previous_track": lambda device: seek_track_rel(device, -1),
