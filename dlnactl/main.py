@@ -1,4 +1,5 @@
-from datetime import datetime
+import time
+import datetime
 
 import upnpclient
 
@@ -21,17 +22,23 @@ def seek_abs(device, desired_target):
     """
     media_info = device.AVTransport.GetPositionInfo(InstanceID=0)
 
-    track_duration_t = datetime.strptime(
+    tdur = time.strptime(
         media_info["TrackDuration"], "%H:%M:%S")
+    track_duration_t = datetime.timedelta(
+        hours=tdur.tm_hour, minutes=tdur.tm_min, seconds=tdur.tm_sec).total_seconds()
 
-    desired_target_t = datetime.strptime(
+    tdes = time.strptime(
         desired_target, "%H:%M:%S")
+    track_desired_t = datetime.timedelta(
+        hours=tdes.tm_hour, minutes=tdes.tm_min, seconds=tdes.tm_sec).total_seconds()
 
     target = min(track_duration_t, desired_target_t)
 
+    m, s = divmod(target, 60)
+    h, m = divmod(m, 60)
+
     return device.AVTransport.Seek(
-        InstanceID=0, Unit="ABS_TIME",
-        Target=datetime.strftime(target, "%H:%M:%S"))
+        InstanceID=0, Unit="ABS_TIME", Target="{}:{02d}:{02d}".format(h, m, s))
 
 
 def seek_track(device, desired_track):
