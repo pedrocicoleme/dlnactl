@@ -1,10 +1,59 @@
 import time
 import datetime
+import logging
+from functools import partial
 
 import upnpclient
+import lxml.etree
+
+
+logger = logging.getLogger('dlnactl')
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s %(name)s-%(lineno)s %(levelname)s %(message)s')
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
 
 
 AVTRANSPORT_SERVICE_ID = "urn:upnp-org:serviceId:AVTransport"
+INSTANCE_ID = 0
+SPEED = "1"
+CHANNEL_MASTER = "Master"
+
+
+
+service_original = upnpclient.upnp.Service
+
+class Service(service_original):
+    def _read_state_vars(self):
+        for statevar_node in self._findall('serviceStateTable/stateVariable'):
+            findtext = partial(statevar_node.findtext, namespaces=statevar_node.nsmap)
+            findall = partial(statevar_node.findall, namespaces=statevar_node.nsmap)
+            name = findtext('name')
+            datatype = findtext('dataType')
+            send_events = statevar_node.attrib.get('sendEvents', 'yes').lower() == 'yes'
+            allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
+
+            allowed_value_range = {
+                e.tag.split('}')[-1]: (
+                    int(e.text) if isinstance(e.text, str) and datatype.startswith('ui')
+                    else e.text)
+                for c in findall('allowedValueRange')
+                for e in c.getchildren()}
+
+            self.statevars[name] = dict(
+                name=name,
+                datatype=datatype,
+                allowed_values=allowed_values,
+                allowed_value_range=allowed_value_range,
+                send_events=send_events
+            )
+
+print("monkey-patching")
+upnpclient.upnp.Service = Service
 
 
 class NotImplemented(Exception):
@@ -39,7 +88,7 @@ def seek_abs(device, desired_target):
     h, m = divmod(m, 60)
 
     return device.AVTransport.Seek(
-        InstanceID=0, Unit="ABS_TIME", Target="{}:{02d}:{02d}".format(h, m, s))
+        InstanceID=INSTANCE_ID, Unit="ABS_TIME", Target="{}:{02d}:{02d}".format(h, m, s))
 
 
 def seek_percent(device, desired_percent):
@@ -64,7 +113,7 @@ def seek_track(device, desired_track):
     target = max(1, min(nr_tracks, desired_track))
 
     return device.AVTransport.Seek(
-        InstanceID=0, Unit="TRACK_NR", Target=target)
+        InstanceID=INSTANCE_ID, Unit="TRACK_NR", Target=target)
 
 
 def seek_track_rel(device, desired_step=1):
@@ -84,31 +133,35 @@ def get_volume(device):
     """
     Return the volume normalized from 0 to 100%
     """
-    max_volume = device.statevars["Volume"]
+    max_volume = device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"]
 
     current_volume = device.RenderingControl.GetVolume(
-        InstanceID=0, Channel="Master")["CurrentVolume"]
+        InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER)["CurrentVolume"]
 
-    return current_volume * 100.0 / max_volume
+    return int(current_volume * 100 / max_volume)
 
 
 def set_volume(device, desired_volume):
     """
     Set the volume from 0 to 100%
     """
-    max_volume = device.statevars["Volume"]
+    max_volume = device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"]
 
     desired_volume_clipped = max(0, min(100, desired_volume))
 
     return device.RenderingControl.SetVolume(
-        InstanceID=0, Channel="Master", DesiredVolume=(
-            max_volume * desired_volume) / 100.0)
+        InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER, DesiredVolume=int((
+            max_volume * desired_volume) / 100))
+
+
+def set_media(device, media_uri):
+    pass
 
 
 AVAILABLE_COMMANDS = {
-    "play": lambda device: device.AVTransport.Play(InstanceID=0, Speed="1"),
-    "pause": lambda device: device.AVTransport.Pause(InstanceID=0),
-    "stop": lambda device: device.AVTransport.Stop(InstanceID=0),
+    "play": lambda device: device.AVTransport.Play(InstanceID=INSTANCE_ID, Speed=SPEED),
+    "pause": lambda device: device.AVTransport.Pause(InstanceID=INSTANCE_ID),
+    "stop": lambda device: device.AVTransport.Stop(InstanceID=INSTANCE_ID),
     "seek_abs": seek_abs,
     "seek_percent": seek_percent,
     "seek_track": seek_track,
@@ -119,16 +172,16 @@ AVAILABLE_COMMANDS = {
     "set_media": lambda device: raise_(NotImplemented),
     "set_next_media": lambda device: raise_(NotImplemented),
     "get_state": lambda device: device.AVTransport.GetTransportInfo(
-        InstanceID=0)["CurrentTransportState"],
+        InstanceID=INSTANCE_ID)["CurrentTransportState"],
     "get_media_info": lambda device: device.AVTransport.GetMediaInfo(
-        InstanceID=0),
+        InstanceID=INSTANCE_ID),
     "get_position_info": lambda device: device.AVTransport.GetPositionInfo(
-        InstanceID=0),
+        InstanceID=INSTANCE_ID),
     "set_mute": lambda device, mute: device.RenderingControl.SetMute(
-        InstanceID=0, Channel="Master", DesiredMute=mute),
+        InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER, DesiredMute=mute),
     "set_volume": set_volume,
     "get_mute": lambda device: device.RenderingControl.GetMute(
-        InstanceID=0, Channel="Master")["CurrentMute"],
+        InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER)["CurrentMute"],
     "get_volume": get_volume}
 
 
@@ -141,7 +194,7 @@ def available_devices():
     for device in upnpclient.discover():
         for service in device.services:
             if service.service_id == AVTRANSPORT_SERVICE_ID:
-                print(service.actions)
+                logger.info(service.actions)
 
                 devices.append(device)
 
@@ -150,13 +203,16 @@ def available_devices():
 
 if __name__ == "__main__":
     for device in available_devices():
-        print(device.friendly_name)
+        logger.info(device.friendly_name)
 
-        print(device.AVTransport.Play.argsdef_in)
+        logger.info(device.AVTransport.Play.argsdef_in)
+
+        # continue
+
+        AVAILABLE_COMMANDS["set_volume"](device, 20)
 
         AVAILABLE_COMMANDS["play"](device)
 
-        import time
         time.sleep(5)
         AVAILABLE_COMMANDS["pause"](device)
 
