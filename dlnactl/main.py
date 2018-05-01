@@ -149,7 +149,7 @@ def set_volume(device, desired_volume):
 
     return device.RenderingControl.SetVolume(
         InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER, DesiredVolume=int((
-            max_volume * desired_volume) / 100))
+            max_volume * desired_volume_clipped) / 100))
 
 
 def set_media(device, media_uri):
@@ -208,6 +208,9 @@ if __name__ == "__main__":
         # continue
 
         AVAILABLE_COMMANDS["set_volume"](device, 20)
+
+        import pdb
+        pdb.set_trace()
 
         AVAILABLE_COMMANDS["play"](device)
 
