@@ -38,9 +38,7 @@ class Service(service_original):
             allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
 
             allowed_value_range = {
-                e.tag.split('}')[-1]: (
-                    int(e.text) if isinstance(e.text, str) and datatype.startswith('ui')
-                    else e.text)
+                e.tag.split('}')[-1]: e.text
                 for c in findall('allowedValueRange')
                 for e in c.getchildren()}
 
@@ -133,7 +131,7 @@ def get_volume(device):
     """
     Return the volume normalized from 0 to 100%
     """
-    max_volume = device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"]
+    max_volume = int(device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"])
 
     current_volume = device.RenderingControl.GetVolume(
         InstanceID=INSTANCE_ID, Channel=CHANNEL_MASTER)["CurrentVolume"]
@@ -145,7 +143,7 @@ def set_volume(device, desired_volume):
     """
     Set the volume from 0 to 100%
     """
-    max_volume = device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"]
+    max_volume = int(device.RenderingControl.statevars["Volume"]["allowed_value_range"]["maximum"])
 
     desired_volume_clipped = max(0, min(100, desired_volume))
 
